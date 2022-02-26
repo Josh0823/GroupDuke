@@ -1,0 +1,36 @@
+body {
+    margin: 0px;
+    font-family: "EB Garamond" !important;
+    overflow-x: hidden;
+}
+
+.gridjs-search {
+    width: 81.5%;
+    display: flex;
+}
+
+.gridjs-search-input {
+    flex: 1;
+}
+
+.gridjs-table {
+    width: 100%;
+}
+
+.material-icons {
+    margin-top: 0.4rem;
+    margin-left: 0.8rem;
+    padding: 3px;
+}
+
+.material-icons:hover {
+    cursor: pointer;
+    background-color: rgb(233, 233, 233);
+}
+
+.material-icons-row {
+    margin-right: 0.8rem;
+    flex: 1;
+    display: flex;
+    justify-content: flex-end;
+}
