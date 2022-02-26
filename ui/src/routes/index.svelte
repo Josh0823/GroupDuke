@@ -1,7 +1,7 @@
 <script lang="ts">
 	// import css files
 	import '../../static/main.css';
-	import "gridjs/dist/theme/mermaid.css";
+	import 'gridjs/dist/theme/mermaid.css';
 
 	import { onMount } from 'svelte';
 	import { writable } from 'svelte/store';
@@ -16,20 +16,14 @@
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let serverURL = 'http://localhost:3000';
-	let loggedIn = true;
+	let loggedIn = false;
 	let netID = 'jmg136';
 	let data = [];
 	let showAllSemesters = false;
 	let currentSemester = '';
 	let grid: any;
 
-	const columns = [
-		'Term',
-		'Course Number',
-		'Professor',
-		'Time',
-		'Link'
-	];
+	const columns = ['Term', 'Course Number', 'Professor', 'Time', 'Link'];
 
 	const getCookie = (name: string) => {
 		const value = `; ${document.cookie}`;
@@ -99,10 +93,6 @@
 		}
 	};
 
-	const handleRegister = () => {
-		console.log('register');
-	};
-
 	const handleLogin = (netID) => {
 		loggedIn = true;
 		netID = netID;
@@ -136,21 +126,34 @@
 
 	onMount(async () => {
 		// loggedIn = getCookie('session_token') != '';
+		if (loggedIn) {
+			getData();
+		}
 		getCurrentSemester();
-		getData();
 	});
 
 	const loginModal = writable(null);
 	// @ts-ignore: Doesn't support type checking
-	const showModal = () => loginModal.set(bind(LoginModal));
-	const addCourseModal = () => console.log('add');
+	const showLoginModal = () => loginModal.set(bind(LoginModal, { serverURL: serverURL }, {onClose: () => console.log('closing')}));
+
+	const registerModal = writable(null);
+	// @ts-ignore: Doesn't support type checking
+	const showRegisterModal = () => registerModal.set(bind(LoginModal));
+
+	const addCourseModal = writable(null);
+	// @ts-ignore: Doesn't support type checking
+	const showAddCourseModal = () => addCourseModal.set(bind(LoginModal));
 
 	class ButtonRowPlugin extends BaseComponent {
 		render() {
 			return h('div', { class: 'material-icons-row' }, [
-				h('span', { class: 'material-icons', onclick: addCourseModal }, 'add'),
+				h('span', { class: 'material-icons', onclick: showAddCourseModal }, 'add'),
 				h('span', { class: 'material-icons', onclick: null }, 'delete'),
-				h('span', { class: 'material-icons', onclick: handleShowAllSemesters }, `${showAllSemesters ? 'visibility' : 'visibility_off'}`)
+				h(
+					'span',
+					{ class: 'material-icons', onclick: handleShowAllSemesters },
+					`${showAllSemesters ? 'visibility' : 'visibility_off'}`
+				)
 			]);
 		}
 	}
@@ -160,15 +163,15 @@
 	<title>GroupDuke</title>
 </svelte:head>
 <div>
-	<!-- <Modal show={$loginModal}>
-		<button on:click={showModal}>Show modal</button>
-	</Modal> -->
+	<Modal show={$loginModal} />
+	<Modal show={$registerModal} />
+	<Modal show={$addCourseModal} />
 
 	<TitleBar
 		{loggedIn}
 		{netID}
-		on:register={handleRegister}
-		on:login={handleLogin}
+		on:register={showRegisterModal}
+		on:login={showLoginModal}
 		on:logout={logout}
 	/>
 
