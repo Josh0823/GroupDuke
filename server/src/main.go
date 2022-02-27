@@ -26,11 +26,11 @@ func main() {
 	app.Use(logRequests)
 
 	app.Post("/register", registerHandler)
+	app.Post("/validate-netID", validateNetIDHandler)
 	app.Post("/login", loginHandler)
 	app.Post("/logout", logoutHandler)
 
-	// app.Get("/data", authorize(getDataHandler))
-	app.Get("/data", getDataHandler)
+	app.Get("/data", authorize(getDataHandler))
 	app.Post("/add-course", authorize(addCourseHandler))
 	app.Delete("/delete-course", authorize(deleteCourseHandler))
 

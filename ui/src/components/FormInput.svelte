@@ -1,7 +1,7 @@
 <script lang="ts">
 	export let id: string;
-	export let title: string;
 	export let placeholder: string = '';
+	export let title: string;
 	export let type: string = 'text';
 </script>
 
@@ -11,14 +11,15 @@
 </div>
 
 <style>
+	input {
+		float: right;
+		margin-bottom: 15px;
+	}
+
 	.form-group {
 		display: inline-flex;
 		flex-direction: row;
 		justify-content: space-between;
 		width: 100%;
-	}
-	input {
-		float: right;
-		margin-bottom: 15px;
 	}
 </style>

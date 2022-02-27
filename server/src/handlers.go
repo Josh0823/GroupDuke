@@ -53,6 +53,25 @@ func logRequests(c *fiber.Ctx) error {
 // Handlers
 ///////////////////////////////////////////////////////////////////////////////
 
+func validateNetIDHandler(c *fiber.Ctx) error {
+	// Check if the netID is a student's
+	// Create a 4 digit pin to validate with
+	// Send an email to the netID with the pin
+	data := new(map[string]interface{})
+	if err := c.BodyParser(data); err != nil {
+		log.WithError(err).Error("Error parsing body")
+		return c.SendStatus(http.StatusBadRequest)
+	}
+
+	netID := fmt.Sprint((*data)["username"])
+	if err := checkNetID(netID); err != nil {
+		log.WithError(err).Error("Error validating netID")
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
+	return c.SendStatus(http.StatusOK)
+}
+
 func registerHandler(c *fiber.Ctx) error {
 	data := new(map[string]interface{})
 	if err := c.BodyParser(data); err != nil {
@@ -60,13 +79,8 @@ func registerHandler(c *fiber.Ctx) error {
 		return c.SendStatus(http.StatusBadRequest)
 	}
 
-	netID := fmt.Sprint((*data)["netID"])
+	netID := fmt.Sprint((*data)["username"])
 	password := fmt.Sprint((*data)["password"])
-
-	if err := checkNetID(netID); err != nil {
-		log.WithError(err).Error("Error validating netID")
-		return c.SendStatus(http.StatusUnauthorized)
-	}
 
 	if err := addLogin(netID, password); err != nil {
 		log.WithError(err).Error("Error adding login to database")
@@ -208,13 +222,21 @@ func checkNetID(netID string) error {
 	}
 
 	_, body, _ := a.Bytes()
-	data := new([]map[string]interface{})
 
-	if err := json.Unmarshal(body, data); err != nil {
+	type APIResponse struct {
+		PrimaryAffiliation string `json:"primary_affiliation"`
+	}
+
+	data := make([]APIResponse, 0)
+	if err := json.Unmarshal(body, &data); err != nil {
 		return err
 	}
 
-	role := fmt.Sprint((*data)[0]["primary_affiliation"])
+	if len(data) < 1 {
+		return errors.New("Failed to fetch data")
+	}
+
+	role := fmt.Sprint(data[0].PrimaryAffiliation)
 	if role != "Student" {
 		return errors.New(fmt.Sprintf("Primary affiliation is %v, not Student", role))
 	}

@@ -1,21 +1,17 @@
 <script lang="ts">
-    import { createEventDispatcher, getContext } from 'svelte';
-    const { close } = getContext('simple-modal');
-
 	export let id: string;
 	export let title: string;
 	export let message: string = '';
 	export let error: string = '';
 	export let submitFn: Function;
+	export let cancelFn: Function = null;
 	// export let validateFn: Function;
-
-	let dispatch = createEventDispatcher();
 </script>
 
-<div id="form-modal">
+<main>
 	<h3>{title}</h3>
 	{#if message != ''}
-		<p>{message}</p>
+		<p>{@html message}</p>
 	{/if}
 	<div>
 		<form {id}>
@@ -23,45 +19,18 @@
 		</form>
 
 		<div class="flex-row button-row">
-			<button type="button" on:click|preventDefault={() => close()}> Close </button>
+			{#if cancelFn}
+				<button type="button" on:click|preventDefault={() => cancelFn()}>Cancel</button>
+			{/if}
 			<button type="button" on:click|preventDefault={() => submitFn()}>Submit</button>
 		</div>
 		{#if error}
-			<strong>{error}</strong>
+			<strong class="error-msg">{error}</strong>
 		{/if}
 	</div>
-</div>
+</main>
 
 <style scoped>
-	label {
-		margin-right: 25px;
-	}
-
-	input {
-		vertical-align: middle;
-		float: right;
-	}
-
-	#form-modal {
-		margin: auto;
-		margin-top: 20px;
-		width: 75%;
-	}
-
-	div {
-		margin-bottom: 10px;
-	}
-
-	.flex-row {
-		display: flex;
-		justify-content: flex-end;
-	}
-
-    .button-row {
-        float: right;
-        width: 100%;
-    }
-
 	button {
 		margin-top: 10px;
 		margin-left: 10px;
@@ -78,8 +47,36 @@
 		cursor: pointer;
 	}
 
-	#error-msg {
+	div {
+		margin-bottom: 10px;
+	}
+
+	main {
+		margin: auto;
+		margin-top: 20px;
+		width: 75%;
+		max-width: 400px;
+		padding: 20px;
+		border-radius: 5%;
+		background-color: rgb(247, 247, 247);
+		border: 1px solid rgb(200, 200, 200);
+	}
+
+	p {
+		margin-top: 0px;
+	}
+
+    .button-row {
+        width: 100%;
+    }
+
+	.error-msg {
 		text-align: center;
 		color: rgb(197, 33, 33);
+	}
+
+	.flex-row {
+		display: flex;
+		justify-content: flex-end;
 	}
 </style>
