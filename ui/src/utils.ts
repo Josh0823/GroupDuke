@@ -1,4 +1,4 @@
-export const serverURL = 'http://localhost:3000';
+export const serverURL = process.env.SERVER_URL || 'http://localhost:4200'
 
 export const getCookie = (name: string) => {
 	const value = `; ${document.cookie}`;

@@ -41,9 +41,13 @@ func authorize(fn func(c *fiber.Ctx) error) func(c *fiber.Ctx) error {
 
 func logRequests(c *fiber.Ctx) error {
 	if c.Method() != "OPTION" {
-		user := c.Cookies("net_id", "")
-		log.WithField("netID", user).Info(
-			c.Method(), " ", c.OriginalURL())
+		user := c.Cookies("net_id")
+		if user != "" {
+			log.WithField("netID", user).Info(
+				c.Method(), " ", c.OriginalURL())
+		} else {
+			log.Info(c.Method(), " ", c.OriginalURL())
+		}
 	}
 
 	return c.Next()

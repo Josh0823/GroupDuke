@@ -146,6 +146,8 @@
 </main>
 
 <style>
+	/* @import "https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css"; */
+
 	.content {
 		align-content: center;
 		text-align: center;
