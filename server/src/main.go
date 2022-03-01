@@ -31,7 +31,8 @@ func main() {
 	})
 
 	app.Post("/register", registerHandler)
-	app.Post("/validate-netID", validateNetIDHandler)
+	app.Post("/confirm-registration", confirmRegistrationHandler)
+
 	app.Post("/login", loginHandler)
 	app.Post("/logout", logoutHandler)
 

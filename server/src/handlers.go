@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/http"
+	"net/smtp"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -57,7 +58,7 @@ func logRequests(c *fiber.Ctx) error {
 // Handlers
 ///////////////////////////////////////////////////////////////////////////////
 
-func validateNetIDHandler(c *fiber.Ctx) error {
+func registerHandler(c *fiber.Ctx) error {
 	// Check if the netID is a student's
 	// Create a 4 digit pin to validate with
 	// Send an email to the netID with the pin
@@ -68,34 +69,95 @@ func validateNetIDHandler(c *fiber.Ctx) error {
 	}
 
 	netID := fmt.Sprint((*data)["username"])
+	password := fmt.Sprint((*data)["password"])
+	if netID == "<nil>" || password == "<nil>" {
+		err := errors.New("Posted nil `username` or `password`")
+		log.WithError(err).Error("Registration error")
+		return c.SendStatus(http.StatusBadRequest)
+	}
+
+	if val, err := dbHasNetID(netID); err != nil {
+		log.WithError(err).Error("Error checking if db has netID")
+		return c.SendStatus(http.StatusInternalServerError)
+	} else if val {
+		log.Error("netID already registered")
+		return c.SendStatus(http.StatusUnauthorized)
+	}
+
 	if err := checkNetID(netID); err != nil {
 		log.WithError(err).Error("Error validating netID")
 		return c.SendStatus(http.StatusUnauthorized)
 	}
 
+	pin := fmt.Sprintf("%08d", randInt(0, 99999999))
+	if err := addRegistrationPin(netID, pin); err != nil {
+		log.WithError(err).Error("Error adding registration pin to redis")
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	if err := cachePassword(netID, password); err != nil {
+		log.WithError(err).Error("Error caching login credentials")
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	if err := sendRegisterEmail(netID, pin); err != nil {
+		log.WithError(err).Error("Error sending registration email")
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
 	return c.SendStatus(http.StatusOK)
 }
 
-func registerHandler(c *fiber.Ctx) error {
+func confirmRegistrationHandler(c *fiber.Ctx) error {
 	data := new(map[string]interface{})
 	if err := c.BodyParser(data); err != nil {
 		log.WithError(err).Error("Error parsing body")
 		return c.SendStatus(http.StatusBadRequest)
 	}
 
+	fmt.Println(data)
+
 	netID := fmt.Sprint((*data)["username"])
-	password := fmt.Sprint((*data)["password"])
+	pin := fmt.Sprint((*data)["pin"])
+	if netID == "<nil>" || pin == "<nil>" {
+		err := errors.New("`username` or `pin` not sent with post")
+		log.WithError(err).Error("Error parsing data")
+		return c.SendStatus(http.StatusBadRequest)
+	}
 
-	if err := addLogin(netID, password); err != nil {
-		log.WithError(err).Error("Error adding login to database")
-		if strings.Contains(fmt.Sprint(err), "already registered") {
-			return c.SendStatus(http.StatusUnauthorized)
-		}
+	if val, err := getRegistrationPin(netID); err != nil {
+		log.WithError(err).Error("Error checking redis for pin")
+		return c.SendStatus(http.StatusInternalServerError)
+	} else if val != pin {
+		fmt.Println(val)
+		fmt.Println(pin)
+		err = errors.New("Pin in redis != posted value")
+		log.WithError(err).Error("Confirm registration failed")
+		return c.SendStatus(http.StatusUnauthorized)
+	}
 
+	password, err := getCachedPassword(netID)
+	if err != nil {
+		log.WithError(err).Error("Error getting cached password from redis")
 		return c.SendStatus(http.StatusInternalServerError)
 	}
 
-	log.Info(fmt.Sprintf("Added login for %v\n", netID))
+	if err := addLogin(netID, password); err != nil {
+		log.WithError(err).Error("Error adding login to database")
+		return c.SendStatus(http.StatusInternalServerError)
+	}
+
+	if err := removeRegistrationPin(netID); err != nil {
+		msg := fmt.Sprintf("Error removing registration pin for %v", netID)
+		log.WithError(err).Error(msg)
+	}
+	log.Info(fmt.Sprintf("Login info added for %v", netID))
+
+	if err := removeCachedPassword(netID); err != nil {
+		msg := fmt.Sprintf("Error removing cached password for %v", password)
+		log.WithError(err).Error(msg)
+	}
+
 	return c.SendStatus(http.StatusOK)
 }
 
@@ -123,7 +185,7 @@ func loginHandler(c *fiber.Ctx) error {
 	}
 
 	expireTime := 60 * 60 // 1 hour
-	sessionToken, err := addSessionTokenToRedis(creds.Username, expireTime)
+	sessionToken, err := addSessionToken(creds.Username, expireTime)
 	if err != nil {
 		log.WithError(err).Error("Failed to add new session_token to redis")
 		return c.SendStatus(http.StatusInternalServerError)
@@ -242,8 +304,44 @@ func checkNetID(netID string) error {
 
 	role := fmt.Sprint(data[0].PrimaryAffiliation)
 	if role != "Student" {
-		return errors.New(fmt.Sprintf("Primary affiliation is %v, not Student", role))
+		return errors.New(fmt.Sprintf("Primary affiliation for %v is %v, not Student", netID, role))
 	}
 
 	return nil
+}
+
+func sendRegisterEmail(netID string, pin string) error {
+	from := os.Getenv("EMAIL_USERNAME")
+	password := os.Getenv("EMAIL_PASSWORD")
+
+	if from == "" || password == "" {
+		return errors.New("EMAIL_USERNAME or EMAIL_PASSWORD env variable not set")
+	}
+
+	to := []string{
+		fmt.Sprintf("%v@duke.edu", netID),
+	}
+
+	subject := "Subject: Register for GroupDuke\n"
+	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
+	link := fmt.Sprintf("%v/confirm/%v/%v", origin, netID, pin)
+	body := fmt.Sprintf("To confirm your registration, click this link: <a href=\"%v\">%v</a>", link, link)
+	message := []byte(subject + mime + body)
+
+	smtpHost := "smtp.gmail.com"
+	smtpPort := "587"
+
+	auth := smtp.PlainAuth("", from, password, smtpHost)
+
+	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, message)
+	if err != nil {
+		return err
+	}
+
+	log.Info(fmt.Sprintf("Sent email to %v@duke.edu", netID))
+	return nil
+}
+
+func randInt(low, high int) int {
+	return low + rand.Intn(high-low)
 }

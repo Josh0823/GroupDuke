@@ -1,4 +1,7 @@
-export const serverURL = process.env.SERVER_URL || 'http://localhost:4200'
+export const serverURL =
+	typeof process !== 'undefined'
+		? process.env.SERVER_URL || 'http://localhost:4200'
+		: 'http://localhost:4200';
 
 export const getCookie = (name: string) => {
 	const value = `; ${document.cookie}`;
@@ -37,4 +40,3 @@ export const isUserLoggedIn = (): [boolean, string] => {
 export const deleteCookie = (name: string) => {
 	document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 };
-

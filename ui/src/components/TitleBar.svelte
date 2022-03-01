@@ -10,7 +10,7 @@
 <div class="TitleBar">
 	<div>
 		<p style="margin-left: 10px;">
-			<span on:click={() => window.location.replace('/')} class="link">GroupDuke</span>
+			<span on:click={() => window.location.assign('/')} class="link">GroupDuke</span>
 		</p>
 	</div>
 	<div style="display: inline-flex;">
@@ -19,8 +19,8 @@
 		{:else if !disabled}
 			<div class="flex-row">
 				<p>
-					<span on:click={() => window.location.replace('register')} class="link">Register</span>
-					<span on:click={() => window.location.replace('login')} class="link">Login</span>
+					<span on:click={() => window.location.assign('register')} class="link">Register</span>
+					<span on:click={() => window.location.assign('login')} class="link">Login</span>
 				</p>
 			</div>
 		{/if}

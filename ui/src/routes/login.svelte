@@ -1,8 +1,8 @@
 <script lang="ts">
 	import '../../static/main.css';
 	import Form from '../components/Form.svelte';
-    import FormInput from '../components/FormInput.svelte';
-	import { serverURL } from '../utils';
+	import FormInput from '../components/FormInput.svelte';
+	import { serverURL } from '$lib/utils';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let error = '';
@@ -37,7 +37,7 @@
 </script>
 
 <main>
-	<TitleBar on:register={() => window.location.replace('/register')} />
+	<TitleBar on:register={() => window.location.assign('/register')} />
 
 	<Form id={formID} title="Login" submitFn={processLogin} {error}>
 		<FormInput id="username" title="NetID" />

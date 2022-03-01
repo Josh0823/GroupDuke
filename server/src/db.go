@@ -30,12 +30,68 @@ func initCache(redisURL string) error {
 	return nil
 }
 
-func addSessionTokenToRedis(value string, expireTime int) (string, error) {
+func addSessionToken(value string, expireTime int) (string, error) {
 	uu, err := uuid.NewV4()
 	sessionToken := uu.String()
 
 	_, err = cache.Do("SETEX", sessionToken, fmt.Sprint(expireTime), value)
 	return sessionToken, err
+}
+
+func addRegistrationPin(netID string, pin string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_pin_%v", netID), pin)
+	return err
+}
+
+func getRegistrationPin(netID string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_pin_%v", netID)))
+	return val, err
+}
+
+func removeRegistrationPin(netID string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_pin_%v", netID))
+	return err
+}
+
+func cachePassword(netID string, password string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_creds_%v", netID), password)
+	return err
+}
+
+func getCachedPassword(netID string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_creds_%v", netID)))
+	return val, err
+}
+
+func removeCachedPassword(netID string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_creds_%v", netID))
+	return err
+}
+
+func dbHasNetID(netID string) (bool, error) {
+	db, err := sql.Open("sqlite3", dbString)
+	if err != nil {
+		defer db.Close()
+		return false, err
+	}
+
+	query := fmt.Sprintf("SELECT * FROM logins WHERE logins.username = '%v'", netID)
+	rows, err := db.Query(query)
+	defer db.Close()
+	defer rows.Close()
+	if err != nil {
+		return false, err
+	}
+
+	if err := rows.Err(); err != nil {
+		return false, err
+	}
+
+	if rows.Next() {
+		return true, nil
+	}
+
+	return false, nil
 }
 
 func addCourse(newCourse Course) error {

@@ -3,7 +3,13 @@
 	import 'gridjs/dist/theme/mermaid.css';
 
 	import { BaseComponent, h, html, PluginPosition } from 'gridjs';
-	import { deleteCookie, getCookie, getCurrentSemester, isUserLoggedIn, serverURL } from '../utils';
+	import {
+		deleteCookie,
+		getCookie,
+		getCurrentSemester,
+		isUserLoggedIn,
+		serverURL
+	} from '$lib/utils';
 	import Grid from 'gridjs-svelte';
 	import { onMount } from 'svelte';
 	import TitleBar from '../components/TitleBar.svelte';
@@ -71,7 +77,7 @@
 			deleteCookie('session_token');
 			deleteCookie('net_id');
 
-			window.location.replace('/login');
+			window.location.assign('/login');
 		} else {
 			console.error('Error: logout failed');
 		}
@@ -116,9 +122,6 @@
 	}
 </script>
 
-<svelte:head>
-	<title>GroupDuke</title>
-</svelte:head>
 <main>
 	<TitleBar {loggedIn} {netID} on:logout={handleLogout} />
 

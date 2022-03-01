@@ -3,17 +3,17 @@
 
 	import Form from '../components/Form.svelte';
 	import FormInput from '../components/FormInput.svelte';
-	import { isUserLoggedIn, serverURL } from '../utils';
+	import { isUserLoggedIn, serverURL } from '$lib/utils';
 	import { onMount } from 'svelte';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let error: string;
-    let id = 'add-course-form';
+	let id = 'add-course-form';
 	let loggedIn: boolean;
 	let netID: string;
 
 	const addCourse = () => {
-		let form = document.forms[id]
+		let form = document.forms[id];
 		const data = new FormData(form);
 
 		let course = { id: 0 };

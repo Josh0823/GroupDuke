@@ -14,7 +14,12 @@
 		<p>{@html message}</p>
 	{/if}
 	<div>
-		<form {id}>
+		<form
+			{id}
+			on:keyup={(e) => {
+				if (e.key === 'Enter') submitFn();
+			}}
+		>
 			<slot />
 		</form>
 
@@ -66,9 +71,9 @@
 		margin-top: 0px;
 	}
 
-    .button-row {
-        width: 100%;
-    }
+	.button-row {
+		width: 100%;
+	}
 
 	.error-msg {
 		text-align: center;
