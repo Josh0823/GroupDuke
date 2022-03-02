@@ -10,6 +10,7 @@
 		isUserLoggedIn,
 		serverURL
 	} from '$lib/utils';
+	import FooterBar from '../components/FooterBar.svelte';
 	import Grid from 'gridjs-svelte';
 	import { onMount } from 'svelte';
 	import TitleBar from '../components/TitleBar.svelte';
@@ -53,7 +54,6 @@
 		});
 
 		if (res.ok) {
-			console.log('returning fetched and formatted data');
 			data = formatData(await res.json());
 			grid.updateConfig({ data: data }).forceRender();
 		} else {
@@ -146,6 +146,8 @@
 			/>
 		{/if}
 	</div>
+
+	<FooterBar />
 </main>
 
 <style>

@@ -6,7 +6,7 @@
 </script>
 
 <div class="form-group">
-	<label for={id}>{title}</label>
+	<label for={id}>{@html title}</label>
 	<input name={id} {id} {placeholder} {type} required />
 </div>
 

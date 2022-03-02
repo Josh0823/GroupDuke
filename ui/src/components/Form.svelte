@@ -14,12 +14,7 @@
 		<p>{@html message}</p>
 	{/if}
 	<div>
-		<form
-			{id}
-			on:keyup={(e) => {
-				if (e.key === 'Enter') submitFn();
-			}}
-		>
+		<form {id}>
 			<slot />
 		</form>
 

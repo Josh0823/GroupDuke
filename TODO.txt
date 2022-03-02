@@ -3,24 +3,16 @@ Allow users to delete courses they submitted
 - Show modal with course information
 - If netID == course.User, allow for a delete button to be visible
 
-Add form checking for AddCourseModal
-- Check that term[0:2] in [Sp, Su, Fa]
-- Check that term[2:4] is numeric
-
+Add form checking for add-course
 - Check that time starts with M/T/W/Th/F
 - Check that time ends with a valid time in the format HH:MM (am | pm)
 
-- Check that link leads to groupme.com/join
-- Check that link starts with https://
-
-Add instructions for where to find GroupMe links to share
-- Display at top of page somewhere?
+Add help page, contact page
+- Where to find groupme join link
 
 Add reset password page
 - Remove login info from database
 - Have user re-register
 
-Add password hashing and salting for login & registration
-Sanitize strings going into database
 
 Fully document code

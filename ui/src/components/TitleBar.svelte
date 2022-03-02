@@ -7,29 +7,53 @@
 	export let netID: string = '';
 </script>
 
-<div class="TitleBar">
+<main>
 	<div>
 		<p style="margin-left: 10px;">
-			<span on:click={() => window.location.assign('/')} class="link">GroupDuke</span>
+			<a href="/">GroupDuke</a>
 		</p>
 	</div>
 	<div style="display: inline-flex;">
 		{#if loggedIn && !disabled}
-			<p>{netID}<span on:click={() => dispatch('logout')} class="link">Logout</span></p>
+			<p>{netID}<a on:click={() => dispatch('logout')} href="/">Logout</a></p>
 		{:else if !disabled}
 			<div class="flex-row">
 				<p>
-					<span on:click={() => window.location.assign('register')} class="link">Register</span>
-					<span on:click={() => window.location.assign('login')} class="link">Login</span>
+					<a href="/register">Register</a>
+					<a href="/login">Login</a>
 				</p>
 			</div>
 		{/if}
 	</div>
-</div>
+</main>
 
 <style>
+	a {
+		margin-left: 20px;
+		color: white;
+        text-decoration: none;
+	}
+
+	a:hover {
+		cursor: pointer;
+		text-decoration: underline;
+	}
+
 	div {
 		vertical-align: text-bottom;
+	}
+
+	main {
+		width: 100%;
+		margin: 0;
+		padding-top: 10px;
+		padding-bottom: 10px;
+		background-color: rgb(0, 48, 135);
+		color: white;
+
+		display: inline-flex;
+		flex-direction: row;
+		justify-content: space-between;
 	}
 
 	p {
@@ -43,28 +67,5 @@
 
 	.flex-row p {
 		margin-right: 20px;
-	}
-
-	.link {
-		margin-left: 20px;
-		color: white;
-	}
-
-	.link:hover {
-		cursor: pointer;
-		text-decoration: underline;
-	}
-
-	.TitleBar {
-		width: 100%;
-		margin: 0;
-		padding-top: 10px;
-		padding-bottom: 10px;
-		background-color: rgb(0, 48, 135);
-		color: white;
-
-		display: inline-flex;
-		flex-direction: row;
-		justify-content: space-between;
 	}
 </style>

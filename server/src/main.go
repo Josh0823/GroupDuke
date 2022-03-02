@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 
+	"firebase.google.com/go/db"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/gomodule/redigo/redis"
@@ -10,7 +11,9 @@ import (
 )
 
 var cache redis.Conn
-var dbString = os.Getenv("DB_STRING")
+var client *db.Client
+var dbCreds = os.Getenv("FIREBASE_CREDS_FILE")
+var dbURL = os.Getenv("FIREBASE_DB_URL")
 var local = os.Getenv("PORT")
 var origin = os.Getenv("ORIGIN_URL")
 var redisURL = os.Getenv("REDIS_URL")
@@ -45,10 +48,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if dbString == "" {
-		log.Fatal("DB_STRING env variable not set")
+	if err := initFirebase(); err != nil {
+		log.WithError(err).Fatal("Error initializing firebase")
 	}
-	log.Info("DB_STRING: ", dbString)
 
 	if local[0] != ':' {
 		local = ":" + local

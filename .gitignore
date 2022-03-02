@@ -4,6 +4,7 @@
 
 # Environment variables
 *.env
+g*.json
 
 # IDE Files
 *.vscode

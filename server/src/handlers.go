@@ -242,7 +242,7 @@ func deleteCourseHandler(c *fiber.Ctx) error {
 }
 
 func getDataHandler(c *fiber.Ctx) error {
-	term := c.Params("term", "%")
+	term := c.Params("term")
 
 	courses, err := getCourses(term)
 	if err != nil {
