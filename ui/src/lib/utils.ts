@@ -9,6 +9,10 @@ export const getCookie = (name: string) => {
 	return parts.length === 2 ? parts.pop().split(';').shift() : '';
 };
 
+export const deleteCookie = (name: string) => {
+	document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
+};
+
 export const getCurrentSemester = () => {
 	const d = new Date();
 	const month = d.getMonth();
@@ -37,6 +41,18 @@ export const isUserLoggedIn = (): [boolean, string] => {
 	return [true, id];
 };
 
-export const deleteCookie = (name: string) => {
-	document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-};
+export const logout = async () => {
+	const res = await fetch(`${serverURL}/logout`, {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		credentials: 'include',
+		body: JSON.stringify(getCookie('session_token'))
+	});
+
+	if (res.ok) {
+		deleteCookie('session_token');
+		deleteCookie('net_id');
+	}
+
+	return res.ok;
+}

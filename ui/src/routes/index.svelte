@@ -3,16 +3,11 @@
 	import 'gridjs/dist/theme/mermaid.css';
 
 	import { BaseComponent, h, html, PluginPosition } from 'gridjs';
-	import {
-		deleteCookie,
-		getCookie,
-		getCurrentSemester,
-		isUserLoggedIn,
-		serverURL
-	} from '$lib/utils';
+	import { getCurrentSemester, isUserLoggedIn, logout, serverURL } from '$lib/utils';
+	import { onMount } from 'svelte';
+
 	import FooterBar from '../components/FooterBar.svelte';
 	import Grid from 'gridjs-svelte';
-	import { onMount } from 'svelte';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let grid: any;
@@ -20,7 +15,7 @@
 	let data = [];
 
 	let loggedIn: boolean = true;
-	let netID: string;
+	let username: string;
 	let showAllSemesters = false;
 	let currentSemester: string;
 
@@ -63,23 +58,12 @@
 	};
 
 	const handleLogout = async () => {
-		const res = await fetch(`${serverURL}/logout`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify(getCookie('session_token'))
-		});
-
-		if (res.ok) {
+		if (logout()) {
 			loggedIn = false;
-			netID = '';
-
-			deleteCookie('session_token');
-			deleteCookie('net_id');
-
+			username = '';
 			window.location.assign('/login');
 		} else {
-			console.error('Error: logout failed');
+			console.error('Failed to logout');
 		}
 	};
 
@@ -89,7 +73,7 @@
 	};
 
 	onMount(async () => {
-		[loggedIn, netID] = isUserLoggedIn();
+		[loggedIn, username] = isUserLoggedIn();
 
 		if (loggedIn) {
 			currentSemester = getCurrentSemester();
@@ -123,7 +107,7 @@
 </script>
 
 <main>
-	<TitleBar {loggedIn} {netID} on:logout={handleLogout} />
+	<TitleBar {loggedIn} {username} on:logout={handleLogout} />
 
 	<div class="content">
 		{#if loggedIn}

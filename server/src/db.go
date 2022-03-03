@@ -58,33 +58,33 @@ func addSessionToken(value string, expireTime int) (string, error) {
 	return sessionToken, err
 }
 
-func addRegistrationPin(netID string, pin string) error {
-	_, err := cache.Do("SET", fmt.Sprintf("_pin_%v", netID), pin)
+func addRegistrationPin(username string, pin string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_pin_%v", username), pin)
 	return err
 }
 
-func getRegistrationPin(netID string) (string, error) {
-	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_pin_%v", netID)))
+func getRegistrationPin(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_pin_%v", username)))
 	return val, err
 }
 
-func removeRegistrationPin(netID string) error {
-	_, err := cache.Do("DEL", fmt.Sprintf("_pin_%v", netID))
+func removeRegistrationPin(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_pin_%v", username))
 	return err
 }
 
-func cachePassword(netID string, password string) error {
-	_, err := cache.Do("SET", fmt.Sprintf("_creds_%v", netID), password)
+func cachePassword(username string, password string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_creds_%v", username), password)
 	return err
 }
 
-func getCachedPassword(netID string) (string, error) {
-	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_creds_%v", netID)))
+func getCachedPassword(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_creds_%v", username)))
 	return val, err
 }
 
-func removeCachedPassword(netID string) error {
-	_, err := cache.Do("DEL", fmt.Sprintf("_creds_%v", netID))
+func removeCachedPassword(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_creds_%v", username))
 	return err
 }
 
@@ -136,9 +136,9 @@ func deleteCourse(idToDelete int) (int64, error) {
 	return 0, nil
 }
 
-func dbHasNetID(netID string) (bool, error) {
+func dbHasUsername(username string) (bool, error) {
 	var result string
-	err := client.NewRef("logins").Child(netID).Get(context.Background(), &result)
+	err := client.NewRef("logins").Child(username).Get(context.Background(), &result)
 
 	return result != "", err
 }

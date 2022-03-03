@@ -4,7 +4,7 @@
 
 	export let disabled: boolean = false;
 	export let loggedIn: boolean = false;
-	export let netID: string = '';
+	export let username: string = '';
 </script>
 
 <main>
@@ -15,7 +15,7 @@
 	</div>
 	<div style="display: inline-flex;">
 		{#if loggedIn && !disabled}
-			<p>{netID}<a on:click={() => dispatch('logout')} href="/">Logout</a></p>
+			<p>{username}<span on:click={() => dispatch('logout')}>Logout</span></p>
 		{:else if !disabled}
 			<div class="flex-row">
 				<p>
@@ -31,7 +31,7 @@
 	a {
 		margin-left: 20px;
 		color: white;
-        text-decoration: none;
+		text-decoration: none;
 	}
 
 	a:hover {
@@ -58,6 +58,17 @@
 
 	p {
 		margin: 10px 20px 10px 20px;
+	}
+
+	span {
+		margin-left: 20px;
+		color: white;
+		text-decoration: none;
+	}
+
+	span:hover {
+		cursor: pointer;
+		text-decoration: underline;
 	}
 
 	.flex-row {

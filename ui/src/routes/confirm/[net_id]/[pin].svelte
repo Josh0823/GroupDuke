@@ -1,10 +1,12 @@
 <script lang="ts">
 	import '../../../../static/main.css';
+
 	import { onMount } from 'svelte';
 	import { serverURL } from '$lib/utils';
+
 	import TitleBar from '../../../components/TitleBar.svelte';
 
-	export let netID: string;
+	export let username: string;
 	export let pin: string;
 
 	let running = true;
@@ -15,7 +17,7 @@
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			credentials: 'include',
-			body: JSON.stringify({ username: netID, pin: pin })
+			body: JSON.stringify({ username: username, pin: pin })
 		});
 
 		running = false;

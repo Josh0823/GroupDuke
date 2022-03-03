@@ -36,6 +36,9 @@ func main() {
 	app.Post("/register", registerHandler)
 	app.Post("/confirm-registration", confirmRegistrationHandler)
 
+	app.Post("/reset-password", resetPasswordHandler)
+	app.Post("/confirm-reset-password", confirmResetPasswordHandler)
+
 	app.Post("/login", loginHandler)
 	app.Post("/logout", logoutHandler)
 
@@ -48,6 +51,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Info("connecting to firebase")
 	if err := initFirebase(); err != nil {
 		log.WithError(err).Fatal("Error initializing firebase")
 	}

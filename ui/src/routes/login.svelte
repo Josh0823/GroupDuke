@@ -1,8 +1,11 @@
 <script lang="ts">
 	import '../../static/main.css';
+
+	import { serverURL } from '$lib/utils';
+
+	import FooterBar from '../components/FooterBar.svelte';
 	import Form from '../components/Form.svelte';
 	import FormInput from '../components/FormInput.svelte';
-	import { serverURL } from '$lib/utils';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let error = '';
@@ -43,4 +46,6 @@
 		<FormInput id="username" title="NetID" />
 		<FormInput id="password" title="Password" type="password" />
 	</Form>
+
+	<FooterBar />
 </main>

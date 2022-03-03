@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net/http"
 	"net/smtp"
 	"os"
 	"time"
@@ -23,17 +22,17 @@ func authorize(fn func(c *fiber.Ctx) error) func(c *fiber.Ctx) error {
 		sessionToken := c.Cookies("session_token")
 		if sessionToken == "" {
 			log.Error("'session_token' cookie not found")
-			return c.SendStatus(http.StatusUnauthorized)
+			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 
 		res, err := cache.Do("GET", sessionToken)
 		if err != nil {
 			log.WithError(err).Error("Error checking redis")
-			return c.SendStatus(http.StatusInternalServerError)
+			return c.SendStatus(fiber.StatusInternalServerError)
 		}
 		if res == nil {
 			log.WithError(err).Error("'session_token' cookie not found in redis")
-			return c.SendStatus(http.StatusUnauthorized)
+			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 
 		return fn(c)
@@ -44,7 +43,7 @@ func logRequests(c *fiber.Ctx) error {
 	if c.Method() != "OPTION" {
 		user := c.Cookies("net_id")
 		if user != "" {
-			log.WithField("netID", user).Info(
+			log.WithField("user", user).Info(
 				c.Method(), " ", c.OriginalURL())
 		} else {
 			log.Info(c.Method(), " ", c.OriginalURL())
@@ -65,100 +64,115 @@ func registerHandler(c *fiber.Ctx) error {
 	data := new(map[string]interface{})
 	if err := c.BodyParser(data); err != nil {
 		log.WithError(err).Error("Error parsing body")
-		return c.SendStatus(http.StatusBadRequest)
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	netID := fmt.Sprint((*data)["username"])
+	username := fmt.Sprint((*data)["username"])
 	password := fmt.Sprint((*data)["password"])
-	if netID == "<nil>" || password == "<nil>" {
+	if username == "<nil>" || password == "<nil>" {
 		err := errors.New("Posted nil `username` or `password`")
 		log.WithError(err).Error("Registration error")
-		return c.SendStatus(http.StatusBadRequest)
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	if val, err := dbHasNetID(netID); err != nil {
-		log.WithError(err).Error("Error checking if db has netID")
-		return c.SendStatus(http.StatusInternalServerError)
+	if val, err := dbHasUsername(username); err != nil {
+		log.WithError(err).Error("Error checking if db has username")
+		return c.SendStatus(fiber.StatusInternalServerError)
 	} else if val {
-		log.Error("netID already registered")
-		return c.SendStatus(http.StatusUnauthorized)
+		log.Error("username already registered")
+		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
-	if err := checkNetID(netID); err != nil {
+	if err := checkNetID(username); err != nil {
 		log.WithError(err).Error("Error validating netID")
-		return c.SendStatus(http.StatusUnauthorized)
+		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
 	pin := fmt.Sprintf("%08d", randInt(0, 99999999))
-	if err := addRegistrationPin(netID, pin); err != nil {
+	if err := addRegistrationPin(username, pin); err != nil {
 		log.WithError(err).Error("Error adding registration pin to redis")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := cachePassword(netID, password); err != nil {
+	if err := cachePassword(username, password); err != nil {
 		log.WithError(err).Error("Error caching login credentials")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := sendRegisterEmail(netID, pin); err != nil {
+	if err := sendRegisterEmail(username, pin); err != nil {
 		log.WithError(err).Error("Error sending registration email")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func confirmRegistrationHandler(c *fiber.Ctx) error {
 	data := new(map[string]interface{})
 	if err := c.BodyParser(data); err != nil {
 		log.WithError(err).Error("Error parsing body")
-		return c.SendStatus(http.StatusBadRequest)
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	fmt.Println(data)
 
-	netID := fmt.Sprint((*data)["username"])
+	username := fmt.Sprint((*data)["username"])
 	pin := fmt.Sprint((*data)["pin"])
-	if netID == "<nil>" || pin == "<nil>" {
+	if username == "<nil>" || pin == "<nil>" {
 		err := errors.New("`username` or `pin` not sent with post")
 		log.WithError(err).Error("Error parsing data")
-		return c.SendStatus(http.StatusBadRequest)
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	if val, err := getRegistrationPin(netID); err != nil {
+	if val, err := getRegistrationPin(username); err != nil {
 		log.WithError(err).Error("Error checking redis for pin")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	} else if val != pin {
 		fmt.Println(val)
 		fmt.Println(pin)
 		err = errors.New("Pin in redis != posted value")
 		log.WithError(err).Error("Confirm registration failed")
-		return c.SendStatus(http.StatusUnauthorized)
+		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
-	password, err := getCachedPassword(netID)
+	password, err := getCachedPassword(username)
 	if err != nil {
 		log.WithError(err).Error("Error getting cached password from redis")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := addLogin(netID, password); err != nil {
+	if err := addLogin(username, password); err != nil {
 		log.WithError(err).Error("Error adding login to database")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := removeRegistrationPin(netID); err != nil {
-		msg := fmt.Sprintf("Error removing registration pin for %v", netID)
+	if err := removeRegistrationPin(username); err != nil {
+		msg := fmt.Sprintf("Error removing registration pin for %v", username)
 		log.WithError(err).Error(msg)
 	}
-	log.Info(fmt.Sprintf("Login info added for %v", netID))
+	log.Info(fmt.Sprintf("Login info added for %v", username))
 
-	if err := removeCachedPassword(netID); err != nil {
+	if err := removeCachedPassword(username); err != nil {
 		msg := fmt.Sprintf("Error removing cached password for %v", password)
 		log.WithError(err).Error(msg)
 	}
 
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func resetPasswordHandler(c *fiber.Ctx) error {
+	// need to generate a pin to associate with the reset
+	// store the __reset_pin__NETID in redis with pin
+	// need to send email with link to reset password
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
+func confirmResetPasswordHandler(c *fiber.Ctx) error {
+	// need to check that __reset_pin__NETID pin matches incoming pin
+	// replace old password with new password
+
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func loginHandler(c *fiber.Ctx) error {
@@ -170,25 +184,25 @@ func loginHandler(c *fiber.Ctx) error {
 	creds := new(Credentials)
 	if err := c.BodyParser(creds); err != nil {
 		log.Error(fmt.Sprintf("Error parsing login: %+v", err))
-		return c.SendStatus(http.StatusBadRequest)
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	expectedPassword, err := getPassword(creds.Username)
 	if err != nil {
 		log.WithError(err).Error("Error fetching password from database")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	if expectedPassword != creds.Password {
 		log.Error(fmt.Sprintf("Passwords doesn't match for %v", creds.Username))
-		return c.SendStatus(http.StatusUnauthorized)
+		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
 	expireTime := 60 * 60 // 1 hour
 	sessionToken, err := addSessionToken(creds.Username, expireTime)
 	if err != nil {
 		log.WithError(err).Error("Failed to add new session_token to redis")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	c.Cookie(&fiber.Cookie{
@@ -204,21 +218,21 @@ func loginHandler(c *fiber.Ctx) error {
 	})
 
 	log.Info(fmt.Sprintf("User %v logged in", creds.Username))
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func logoutHandler(c *fiber.Ctx) error {
 	sessionToken := c.Cookies("session_token")
 	if sessionToken == "" {
-		return c.SendStatus(http.StatusOK)
+		return c.SendStatus(fiber.StatusOK)
 	}
 
 	if _, err := cache.Do("DEL", sessionToken); err != nil {
 		log.WithError(err).Error("Failed to delete token in Redis")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func addCourseHandler(c *fiber.Ctx) error {
@@ -230,15 +244,15 @@ func addCourseHandler(c *fiber.Ctx) error {
 
 	if err := addCourse(*course); err != nil {
 		log.WithError(err).Error("Failed to add course")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	log.Info(fmt.Sprintf("Added %v", course.CourseNumber))
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func deleteCourseHandler(c *fiber.Ctx) error {
-	return c.SendStatus(http.StatusOK)
+	return c.SendStatus(fiber.StatusOK)
 }
 
 func getDataHandler(c *fiber.Ctx) error {
@@ -247,7 +261,7 @@ func getDataHandler(c *fiber.Ctx) error {
 	courses, err := getCourses(term)
 	if err != nil {
 		log.WithError(err).Error("Failed to get courses from database")
-		return c.SendStatus(http.StatusInternalServerError)
+		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
 	return c.JSON(courses)
@@ -310,7 +324,7 @@ func checkNetID(netID string) error {
 	return nil
 }
 
-func sendRegisterEmail(netID string, pin string) error {
+func sendRegisterEmail(username string, pin string) error {
 	from := os.Getenv("EMAIL_USERNAME")
 	password := os.Getenv("EMAIL_PASSWORD")
 
@@ -319,12 +333,12 @@ func sendRegisterEmail(netID string, pin string) error {
 	}
 
 	to := []string{
-		fmt.Sprintf("%v@duke.edu", netID),
+		fmt.Sprintf("%v@duke.edu", username),
 	}
 
 	subject := "Subject: Register for GroupDuke\n"
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	link := fmt.Sprintf("%v/confirm/%v/%v", origin, netID, pin)
+	link := fmt.Sprintf("%v/confirm/%v/%v", origin, username, pin)
 	body := fmt.Sprintf("To confirm your registration, click this link: <a href=\"%v\">%v</a>", link, link)
 	message := []byte(subject + mime + body)
 
@@ -338,7 +352,7 @@ func sendRegisterEmail(netID string, pin string) error {
 		return err
 	}
 
-	log.Info(fmt.Sprintf("Sent email to %v@duke.edu", netID))
+	log.Info(fmt.Sprintf("Sent email to %v@duke.edu", username))
 	return nil
 }
 

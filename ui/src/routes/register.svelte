@@ -1,8 +1,10 @@
 <script lang="ts">
 	import '../../static/main.css';
+
+	import { serverURL } from '$lib/utils';
+
 	import Form from '../components/Form.svelte';
 	import FormInput from '../components/FormInput.svelte';
-	import { serverURL } from '$lib/utils';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let error = '';
@@ -11,19 +13,19 @@
 		'<small>Only students can register.</small>'
 	);
 	let emailSent = false;
-	let netID: string;
+	let username: string;
 
 	const processRegister = async () => {
 		const form = document.forms[formID];
 		const data = new FormData(form);
-		const username = data.get('username');
+		const user = data.get('username');
 		const password = data.get('password');
 
-		if (username === '' || password === '') {
+		if (user === '' || password === '') {
 			return;
 		}
 
-		netID = username.toString();
+		username = user.toString();
 
 		const res = await fetch(`${serverURL}/register`, {
 			method: 'POST',
@@ -50,7 +52,7 @@
 		</Form>
 	{:else}
 		<div>
-			<p>Check {netID}@duke.edu to confirm your registration</p>
+			<p>Check {username}@duke.edu to confirm your registration</p>
 			<small
 				>No email? Click here to <a href="/register" on:click={() => (emailSent = false)}>resend</a
 				></small

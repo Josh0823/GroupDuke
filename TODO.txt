@@ -1,18 +1,14 @@
 Allow users to delete courses they submitted
-- Maybe allow clicking on courses
-- Show modal with course information
-- If netID == course.User, allow for a delete button to be visible
+- Highlight and select a course when the user clicks on it
+- If netID == course.User, allow for a delete button to be clicked
+- Alert box asking if they want to delete from database
+- Send request to backend
 
-Add form checking for add-course
-- Check that time starts with M/T/W/Th/F
-- Check that time ends with a valid time in the format HH:MM (am | pm)
-
-Add help page, contact page
-- Where to find groupme join link
+Add contact page
+- Let users type in a message and send it as an email to GroupDuke2023@gmail.com
 
 Add reset password page
 - Remove login info from database
 - Have user re-register
-
 
 Fully document code

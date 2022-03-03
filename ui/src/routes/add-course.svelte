@@ -1,18 +1,19 @@
 <script lang="ts">
 	import '../../static/main.css';
 
-	import Form from '../components/Form.svelte';
-	import FormInput from '../components/FormInput.svelte';
 	import { isUserLoggedIn, serverURL } from '$lib/utils';
 	import { onMount } from 'svelte';
+
+	import Form from '../components/Form.svelte';
+	import FormInput from '../components/FormInput.svelte';
 	import TitleBar from '../components/TitleBar.svelte';
 
 	let error: string;
 	let id = 'add-course-form';
 	let loggedIn: boolean;
-	let netID: string;
+	let username: string;
 
-	const checkTermFormat = (term: string) : boolean => {
+	const checkTermFormat = (term: string): boolean => {
 		if (term.length != 4) {
 			error = 'Term should only be four characters (i.e. Sp22)';
 			return false;
@@ -31,9 +32,9 @@
 		}
 
 		return true;
-	}
+	};
 
-	const checkLinkFormat = (link: string) : boolean => {
+	const checkLinkFormat = (link: string): boolean => {
 		if (!link.startsWith('https://')) {
 			error = 'Link should start with "https://"';
 			return false;
@@ -45,11 +46,35 @@
 		}
 
 		return true;
-	}
+	};
 
-	const checkTimeFormat = (time: string) : boolean => {
+	const checkTimeFormat = (time: string): boolean => {
+		let t = time.split(' ');
+
+		if (t.length != 2) {
+			error =
+				'Time should consist of the days and the hour separated by a space. (i.e. "MWF 1:00pm)';
+			return false;
+		}
+
+		const [days, hours] = t;
+		for (let char of days) {
+			if (!['M', 'T', 'W', 'h', 'F'].includes(char)) {
+				error = 'Make sure the days only include M, T, W, Th, or F';
+				return false;
+			}
+		}
+
+		if (
+			hours.substring(hours.length - 2).toLowerCase() != 'am' ||
+			hours.substring(hours.length - 2).toLowerCase() != 'pm'
+		) {
+			error = 'Make sure the time ends in "am" or "pm"';
+			return false;
+		}
+
 		return true;
-	}
+	};
 
 	const addCourse = async () => {
 		let form = document.forms[id];
@@ -59,13 +84,15 @@
 		for (let entry of data.entries()) {
 			course[entry[0]] = entry[1];
 		}
-		course['user'] = netID;
+		course['user'] = username;
 
 		if (!checkTermFormat(course['term'])) return;
 
+		if (!checkTimeFormat(course['time'])) return;
+
 		if (!checkLinkFormat(course['link'])) return;
 
-		if (!checkTimeFormat(course['time'])) return;
+		return;
 
 		const res = await fetch(`${serverURL}/add-course`, {
 			method: 'POST',
@@ -82,7 +109,7 @@
 	};
 
 	onMount(async () => {
-		[loggedIn, netID] = isUserLoggedIn();
+		[loggedIn, username] = isUserLoggedIn();
 
 		if (loggedIn) {
 		} else {
@@ -90,11 +117,11 @@
 		}
 	});
 
-	let linkTitle = 'Link <small><a href="/help">(Where to find)</a></small>'
+	let linkTitle = 'Link <small><a href="/help">(Where to find)</a></small>';
 </script>
 
 <main>
-	<TitleBar {loggedIn} {netID} disabled={true} />
+	<TitleBar {loggedIn} {username} disabled={true} />
 
 	<Form
 		{id}

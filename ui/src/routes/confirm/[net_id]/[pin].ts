@@ -8,7 +8,7 @@ export async function get({ params }) {
 
 	return {
 		body: {
-			netID: params.net_id,
+			username: params.net_id,
 			pin: params.pin
 		}
 	};

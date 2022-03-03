@@ -4,7 +4,7 @@
 
 # Environment variables
 *.env
-g*.json
+secrets
 
 # IDE Files
 *.vscode

@@ -1,6 +1,12 @@
+<script lang="ts">
+	export let disabled = false;
+</script>
+
 <main>
-	<p><a href="/help" class="link">Help</a></p>
-	<p><a href="/contact" class="link">Contact</a></p>
+	{#if !disabled}
+		<p><a href="/help" class="link">Help</a></p>
+		<p><a href="/contact" class="link">Contact</a></p>
+	{/if}
 </main>
 
 <style>
@@ -16,6 +22,7 @@
 
 	main {
 		width: 100%;
+		min-height: 41.5px;
 		margin: 0;
 		padding-top: 2px;
 		padding-bottom: 2px;
