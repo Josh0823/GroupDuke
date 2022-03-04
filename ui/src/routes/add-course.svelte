@@ -92,8 +92,6 @@
 
 		if (!checkLinkFormat(course['link'])) return;
 
-		return;
-
 		const res = await fetch(`${serverURL}/add-course`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

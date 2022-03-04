@@ -1,36 +1,71 @@
 <script lang="ts">
 	import '../../static/main.css';
 
-	import { isUserLoggedIn } from '$lib/utils';
+	import { isUserLoggedIn, serverURL } from '$lib/utils';
 	import { onMount } from 'svelte';
 
-    import FooterBar from '../components/FooterBar.svelte';
-    import Form from '../components/Form.svelte';
+	import FooterBar from '../components/FooterBar.svelte';
+	import Form from '../components/Form.svelte';
 	import FormInput from '../components/FormInput.svelte';
 	import TitleBar from '../components/TitleBar.svelte';
 
-	const processSubmit = () => {
-		return true;
-	};
-
 	let formID = 'reset-password';
 	let title = 'Reset Password';
-	let submitFn = processSubmit;
+	let message =
+		'Enter your NetID and a link to reset your password will be sent to the your Duke email';
+	let error = '';
 
-	let loggedIn = false;
-	let username = '';
+	let emailSent = false;
+	let username: string;
 
-	onMount(() => {
-		[loggedIn, username] = isUserLoggedIn();
-	});
+	const submitFn = async () => {
+		const form = document.forms[formID];
+		const data = new FormData(form);
+		const user = data.get('username');
+
+		if (user === '') {
+			return;
+		}
+
+		username = user.toString();
+
+		const res = await fetch(`${serverURL}/reset-password`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify({ username: username })
+		});
+
+		if (res.ok) {
+			emailSent = true;
+		} else {
+			error = 'Error requesting password reset';
+		}
+	};
 </script>
 
 <main>
-	<TitleBar {loggedIn} {username} />
+	<TitleBar />
 
-	<Form id={formID} {title} {submitFn}>
-		<FormInput id="username" title="NetID" />
-	</Form>
+	{#if !emailSent}
+		<Form id={formID} {title} {message} {error} {submitFn}>
+			<FormInput id="username" title="NetID" />
+		</Form>
+	{:else}
+		<div>
+			<p>Check {username}@duke.edu to confirm your registration</p>
+			<small
+				>No email? Click here to <a href="/register" on:click={() => (emailSent = false)}>resend</a
+				></small
+			>
+		</div>
+	{/if}
 
-    <FooterBar />
+	<FooterBar />
 </main>
+
+<style>
+	div {
+		text-align: center;
+	}
+</style>

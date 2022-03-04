@@ -99,7 +99,14 @@ func registerHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := sendRegisterEmail(username, pin); err != nil {
+	// Format variables to send an email
+	to := []string{
+		fmt.Sprintf("%v@duke.edu", username),
+	}
+	link := fmt.Sprintf("%v/confirm/%v/%v", origin, username, pin)
+	body := fmt.Sprintf("To confirm your registration, click this link: <a href=\"%v\">%v</a>", link, link)
+
+	if err := sendEmail(to, "Register for GroupDuke", body); err != nil {
 		log.WithError(err).Error("Error sending registration email")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -114,8 +121,6 @@ func confirmRegistrationHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
-	fmt.Println(data)
-
 	username := fmt.Sprint((*data)["username"])
 	pin := fmt.Sprint((*data)["pin"])
 	if username == "<nil>" || pin == "<nil>" {
@@ -128,8 +133,6 @@ func confirmRegistrationHandler(c *fiber.Ctx) error {
 		log.WithError(err).Error("Error checking redis for pin")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	} else if val != pin {
-		fmt.Println(val)
-		fmt.Println(pin)
 		err = errors.New("Pin in redis != posted value")
 		log.WithError(err).Error("Confirm registration failed")
 		return c.SendStatus(fiber.StatusUnauthorized)
@@ -141,7 +144,7 @@ func confirmRegistrationHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := addLogin(username, password); err != nil {
+	if err := setLogin(username, password); err != nil {
 		log.WithError(err).Error("Error adding login to database")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -164,13 +167,79 @@ func resetPasswordHandler(c *fiber.Ctx) error {
 	// need to generate a pin to associate with the reset
 	// store the __reset_pin__NETID in redis with pin
 	// need to send email with link to reset password
+	data := new(map[string]interface{})
+	if err := c.BodyParser(data); err != nil {
+		log.WithError(err).Error("Error parsing body")
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	username := fmt.Sprint((*data)["username"])
+	if username == "<nil>" {
+		log.Error("Error parsing username")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	if val, err := dbHasUsername(username); err != nil {
+		log.WithError(err).Error("Error checking if username is in db")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else if !val {
+		log.Error("Can't reset password if user not in database")
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	pin := fmt.Sprintf("%08d", randInt(0, 99999999))
+	if err := addResetPasswordPin(username, pin); err != nil {
+		log.WithError(err).Error("Error adding reset password pin to redis")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	to := []string{
+		fmt.Sprintf("%v@duke.edu", username),
+	}
+	link := fmt.Sprintf("%v/reset-password/%v/%v", origin, username, pin)
+	body := fmt.Sprintf("To reset your password, click this link: <a href=\"%v\">%v</a>", link, link)
+
+	if err := sendEmail(to, "Reset GroupDuke password", body); err != nil {
+		log.WithError(err).Error("Error sending reset password email")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
 
 	return c.SendStatus(fiber.StatusOK)
 }
 
 func confirmResetPasswordHandler(c *fiber.Ctx) error {
-	// need to check that __reset_pin__NETID pin matches incoming pin
-	// replace old password with new password
+	data := new(map[string]interface{})
+	if err := c.BodyParser(data); err != nil {
+		log.WithError(err).Error("Error parsing body")
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	username := fmt.Sprint((*data)["username"])
+	password := fmt.Sprint((*data)["password"])
+	pin := fmt.Sprint((*data)["pin"])
+	if username == "<nil>" || password == "<nil>" || pin == "<nil>" {
+		err := errors.New("`username`, `password`, or `pin` not sent with post")
+		log.WithError(err).Error("Error parsing data")
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	if val, err := getResetPasswordPin(username); err != nil {
+		log.WithError(err).Error("Error checking redis for pin")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	} else if val != pin {
+		err = errors.New("Pin in redis != posted value")
+		log.WithError(err).Error("Confirm reset password failed")
+		return c.SendStatus(fiber.StatusUnauthorized)
+	}
+
+	if err := setLogin(username, password); err != nil {
+		log.WithError(err).Error("Erroring changing login")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	if err := removeResetPasswordPin(username); err != nil {
+		log.WithError(err).Error("Error removing reset password pin from redis")
+	}
 
 	return c.SendStatus(fiber.StatusOK)
 }
@@ -239,7 +308,7 @@ func addCourseHandler(c *fiber.Ctx) error {
 	course := new(Course)
 	if err := c.BodyParser(course); err != nil {
 		log.WithError(err).Error("Failed to parse course")
-		return err
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	if err := addCourse(*course); err != nil {
@@ -267,21 +336,39 @@ func getDataHandler(c *fiber.Ctx) error {
 	return c.JSON(courses)
 }
 
+func contactHandler(c *fiber.Ctx) error {
+	data := new(map[string]interface{})
+	if err := c.BodyParser(data); err != nil {
+		log.WithError(err).Error("Failed to parse incoming request body")
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	from := fmt.Sprint((*data)["email"])
+	subject := fmt.Sprintf("USER MESSAGE: %v", (*data)["subject"])
+	message := fmt.Sprint((*data)["message"])
+
+	if from == "<nil>" || subject == "<nil>" || message == "<nil>" {
+		return c.SendStatus(fiber.StatusBadRequest)
+	}
+
+	body := fmt.Sprintf("%v\n%v", from, message)
+
+	myEmail := os.Getenv("EMAIL_USERNAME")
+	to := []string{
+		myEmail,
+	}
+
+	if err := sendEmail(to, subject, body); err != nil {
+		log.WithError(err).Error("Error sending contact email")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	return c.SendStatus(fiber.StatusOK)
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 // Utils
 ///////////////////////////////////////////////////////////////////////////////
-
-// Need to add sanitizer for strings
-// func checkData(course Course) error {
-// 	fields := []string{"term", "course_number", "professor", "time", "link", "user"}
-// 	for _, field := range fields {
-// 		if val, ok := course.field; !ok || val == nil {
-// 			return errors.New(fmt.Sprintf("JSON request has no %v field", field))
-// 		}
-// 	}
-
-// 	return nil
-// }
 
 func checkNetID(netID string) error {
 	apiKey := os.Getenv("DUKE_API_KEY")
@@ -324,7 +411,7 @@ func checkNetID(netID string) error {
 	return nil
 }
 
-func sendRegisterEmail(username string, pin string) error {
+func sendEmail(to []string, subject string, body string) error {
 	from := os.Getenv("EMAIL_USERNAME")
 	password := os.Getenv("EMAIL_PASSWORD")
 
@@ -332,14 +419,8 @@ func sendRegisterEmail(username string, pin string) error {
 		return errors.New("EMAIL_USERNAME or EMAIL_PASSWORD env variable not set")
 	}
 
-	to := []string{
-		fmt.Sprintf("%v@duke.edu", username),
-	}
-
-	subject := "Subject: Register for GroupDuke\n"
+	subject = fmt.Sprintf("Subject: %v\n", subject)
 	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	link := fmt.Sprintf("%v/confirm/%v/%v", origin, username, pin)
-	body := fmt.Sprintf("To confirm your registration, click this link: <a href=\"%v\">%v</a>", link, link)
 	message := []byte(subject + mime + body)
 
 	smtpHost := "smtp.gmail.com"
@@ -352,7 +433,6 @@ func sendRegisterEmail(username string, pin string) error {
 		return err
 	}
 
-	log.Info(fmt.Sprintf("Sent email to %v@duke.edu", username))
 	return nil
 }
 

@@ -4,11 +4,4 @@ Allow users to delete courses they submitted
 - Alert box asking if they want to delete from database
 - Send request to backend
 
-Add contact page
-- Let users type in a message and send it as an email to GroupDuke2023@gmail.com
-
-Add reset password page
-- Remove login info from database
-- Have user re-register
-
 Fully document code

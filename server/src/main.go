@@ -42,6 +42,8 @@ func main() {
 	app.Post("/login", loginHandler)
 	app.Post("/logout", logoutHandler)
 
+	app.Post("/contact", contactHandler)
+
 	app.Get("/data", authorize(getDataHandler))
 	app.Post("/add-course", authorize(addCourseHandler))
 	app.Delete("/delete-course", authorize(deleteCourseHandler))

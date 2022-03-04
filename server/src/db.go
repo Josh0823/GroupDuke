@@ -88,6 +88,21 @@ func removeCachedPassword(username string) error {
 	return err
 }
 
+func addResetPasswordPin(username string, pin string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_reset_password_pin_%v", username), pin)
+	return err
+}
+
+func getResetPasswordPin(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_reset_password_pin_%v", username)))
+	return val, err
+}
+
+func removeResetPasswordPin(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_reset_password_pin_%v", username))
+	return err
+}
+
 func addCourse(course Course) error {
 	term := course.Term
 
@@ -143,7 +158,7 @@ func dbHasUsername(username string) (bool, error) {
 	return result != "", err
 }
 
-func addLogin(username string, password string) error {
+func setLogin(username string, password string) error {
 	err := client.NewRef("logins").
 		Child(username).
 		Set(context.Background(), password)
