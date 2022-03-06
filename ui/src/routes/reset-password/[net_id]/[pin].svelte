@@ -15,8 +15,6 @@
 	let error = '';
 	let message = '';
 
-    let emailSent = false;
-
 	const submitFn = async () => {
 		const form = document.forms[formID];
 		const data = new FormData(form);

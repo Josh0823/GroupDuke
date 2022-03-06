@@ -9,6 +9,7 @@ require (
 	github.com/mattn/go-sqlite3 v1.14.11
 	github.com/nu7hatch/gouuid v0.0.0-20131221200532-179d4d0c4d8d
 	github.com/sirupsen/logrus v1.8.1
+	golang.org/x/crypto v0.0.0-20220214200702-86341886e292
 	google.golang.org/api v0.70.0
 )
 

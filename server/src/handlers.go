@@ -1,57 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
-	"net/smtp"
 	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/crypto/bcrypt"
 )
-
-///////////////////////////////////////////////////////////////////////////////
-// Middleware
-///////////////////////////////////////////////////////////////////////////////
-
-func authorize(fn func(c *fiber.Ctx) error) func(c *fiber.Ctx) error {
-	return func(c *fiber.Ctx) error {
-		sessionToken := c.Cookies("session_token")
-		if sessionToken == "" {
-			log.Error("'session_token' cookie not found")
-			return c.SendStatus(fiber.StatusUnauthorized)
-		}
-
-		res, err := cache.Do("GET", sessionToken)
-		if err != nil {
-			log.WithError(err).Error("Error checking redis")
-			return c.SendStatus(fiber.StatusInternalServerError)
-		}
-		if res == nil {
-			log.WithError(err).Error("'session_token' cookie not found in redis")
-			return c.SendStatus(fiber.StatusUnauthorized)
-		}
-
-		return fn(c)
-	}
-}
-
-func logRequests(c *fiber.Ctx) error {
-	if c.Method() != "OPTION" {
-		user := c.Cookies("net_id")
-		if user != "" {
-			log.WithField("user", user).Info(
-				c.Method(), " ", c.OriginalURL())
-		} else {
-			log.Info(c.Method(), " ", c.OriginalURL())
-		}
-	}
-
-	return c.Next()
-}
 
 ///////////////////////////////////////////////////////////////////////////////
 // Handlers
@@ -94,7 +52,13 @@ func registerHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if err := cachePassword(username, password); err != nil {
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		log.WithError(err).Error("Error hashing password")
+		return c.SendStatus(fiber.StatusInternalServerError)
+	}
+
+	if err := cachePassword(username, hashedPassword); err != nil {
 		log.WithError(err).Error("Error caching login credentials")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -232,7 +196,12 @@ func confirmResetPasswordHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
 
-	if err := setLogin(username, password); err != nil {
+	hashedPassword, err := hashPassword(password)
+	if err != nil {
+		log.WithError(err).Error("Erroring hashing password")
+	}
+
+	if err := setLogin(username, hashedPassword); err != nil {
 		log.WithError(err).Error("Erroring changing login")
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
@@ -262,7 +231,7 @@ func loginHandler(c *fiber.Ctx) error {
 		return c.SendStatus(fiber.StatusInternalServerError)
 	}
 
-	if expectedPassword != creds.Password {
+	if err := bcrypt.CompareHashAndPassword([]byte(expectedPassword), []byte(creds.Password)); err != nil {
 		log.Error(fmt.Sprintf("Passwords doesn't match for %v", creds.Username))
 		return c.SendStatus(fiber.StatusUnauthorized)
 	}
@@ -367,75 +336,41 @@ func contactHandler(c *fiber.Ctx) error {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-// Utils
+// Middleware
 ///////////////////////////////////////////////////////////////////////////////
 
-func checkNetID(netID string) error {
-	apiKey := os.Getenv("DUKE_API_KEY")
-	if apiKey == "" {
-		log.Error("DUKE_API_KEY not found")
-		return errors.New("DUKE_API_KEY not found")
+func authorize(fn func(c *fiber.Ctx) error) func(c *fiber.Ctx) error {
+	return func(c *fiber.Ctx) error {
+		sessionToken := c.Cookies("session_token")
+		if sessionToken == "" {
+			log.Error("'session_token' cookie not found")
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+
+		res, err := cache.Do("GET", sessionToken)
+		if err != nil {
+			log.WithError(err).Error("Error checking redis")
+			return c.SendStatus(fiber.StatusInternalServerError)
+		}
+		if res == nil {
+			log.WithError(err).Error("'session_token' cookie not found in redis")
+			return c.SendStatus(fiber.StatusUnauthorized)
+		}
+
+		return fn(c)
 	}
-	url := fmt.Sprintf(
-		"https://streamer.oit.duke.edu/ldap/people/netid/%v?access_token=%v", netID, apiKey)
-
-	a := fiber.AcquireAgent()
-	req := a.Request()
-	req.Header.SetMethod(fiber.MethodGet)
-	req.SetRequestURI(url)
-
-	if err := a.Parse(); err != nil {
-		return err
-	}
-
-	_, body, _ := a.Bytes()
-
-	type APIResponse struct {
-		PrimaryAffiliation string `json:"primary_affiliation"`
-	}
-
-	data := make([]APIResponse, 0)
-	if err := json.Unmarshal(body, &data); err != nil {
-		return err
-	}
-
-	if len(data) < 1 {
-		return errors.New("Failed to fetch data")
-	}
-
-	role := fmt.Sprint(data[0].PrimaryAffiliation)
-	if role != "Student" {
-		return errors.New(fmt.Sprintf("Primary affiliation for %v is %v, not Student", netID, role))
-	}
-
-	return nil
 }
 
-func sendEmail(to []string, subject string, body string) error {
-	from := os.Getenv("EMAIL_USERNAME")
-	password := os.Getenv("EMAIL_PASSWORD")
-
-	if from == "" || password == "" {
-		return errors.New("EMAIL_USERNAME or EMAIL_PASSWORD env variable not set")
+func logRequests(c *fiber.Ctx) error {
+	if c.Method() != "OPTION" {
+		user := c.Cookies("net_id")
+		if user != "" {
+			log.WithField("user", user).Info(
+				c.Method(), " ", c.OriginalURL())
+		} else {
+			log.Info(c.Method(), " ", c.OriginalURL())
+		}
 	}
 
-	subject = fmt.Sprintf("Subject: %v\n", subject)
-	mime := "MIME-version: 1.0;\nContent-Type: text/html; charset=\"UTF-8\";\n\n"
-	message := []byte(subject + mime + body)
-
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
-
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, to, message)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func randInt(low, high int) int {
-	return low + rand.Intn(high-low)
+	return c.Next()
 }
