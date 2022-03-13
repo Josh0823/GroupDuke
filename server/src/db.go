@@ -1,13 +1,14 @@
 package main
 
 import (
-	"database/sql"
-	"errors"
+	"context"
 	"fmt"
 
+	firebase "firebase.google.com/go"
 	"github.com/gomodule/redigo/redis"
 	_ "github.com/mattn/go-sqlite3"
 	uuid "github.com/nu7hatch/gouuid"
+	"google.golang.org/api/option"
 )
 
 type Course struct {
@@ -30,7 +31,26 @@ func initCache(redisURL string) error {
 	return nil
 }
 
-func addSessionTokenToRedis(value string, expireTime int) (string, error) {
+func initFirebase() error {
+	opt := option.WithCredentialsFile(dbCreds)
+	config := &firebase.Config{
+		DatabaseURL: dbURL,
+	}
+	app, err := firebase.NewApp(context.Background(), config, opt)
+	if err != nil {
+		return err
+	}
+
+	c, err := app.Database(context.Background())
+	if err != nil {
+		return err
+	}
+
+	client = c
+	return nil
+}
+
+func addSessionToken(value string, expireTime int) (string, error) {
 	uu, err := uuid.NewV4()
 	sessionToken := uu.String()
 
@@ -38,167 +58,120 @@ func addSessionTokenToRedis(value string, expireTime int) (string, error) {
 	return sessionToken, err
 }
 
-func addCourse(newCourse Course) error {
-	db, err := sql.Open("sqlite3", dbString)
-	if err != nil {
-		defer db.Close()
-		return err
-	}
+func addRegistrationPin(username string, pin string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_pin_%v", username), pin)
+	return err
+}
 
-	stmt, err := db.Prepare("INSERT INTO courses (id, term, course_number, professor, time, link, user) VALUES (?, ?, ?, ?, ?, ?, ?)")
-	defer db.Close()
-	if err != nil {
-		return err
-	}
+func getRegistrationPin(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_pin_%v", username)))
+	return val, err
+}
 
-	_, err = stmt.Exec(
-		nil,
-		newCourse.Term,
-		newCourse.CourseNumber,
-		newCourse.Professor,
-		newCourse.Time,
-		newCourse.Link,
-		newCourse.User,
-	)
-	if err != nil {
-		return err
-	}
+func removeRegistrationPin(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_pin_%v", username))
+	return err
+}
 
-	defer stmt.Close()
-	return nil
+func cachePassword(username string, password string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_creds_%v", username), password)
+	return err
+}
+
+func getCachedPassword(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_creds_%v", username)))
+	return val, err
+}
+
+func removeCachedPassword(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_creds_%v", username))
+	return err
+}
+
+func addResetPasswordPin(username string, pin string) error {
+	_, err := cache.Do("SET", fmt.Sprintf("_reset_password_pin_%v", username), pin)
+	return err
+}
+
+func getResetPasswordPin(username string) (string, error) {
+	val, err := redis.String(cache.Do("GET", fmt.Sprintf("_reset_password_pin_%v", username)))
+	return val, err
+}
+
+func removeResetPasswordPin(username string) error {
+	_, err := cache.Do("DEL", fmt.Sprintf("_reset_password_pin_%v", username))
+	return err
+}
+
+func addCourse(course Course) error {
+	term := course.Term
+
+	_, err := client.NewRef("courses").
+		Child(term).
+		Push(context.Background(), course)
+
+	return err
 }
 
 func getCourses(term string) ([]Course, error) {
-	db, err := sql.Open("sqlite3", dbString)
-	if err != nil {
-		defer db.Close()
-		return nil, err
+	var results []Course
+
+	terms := []string{term}
+	if term == "" {
+		terms = []string{"Sp22", "Fa21", "Su21"}
 	}
 
-	query := fmt.Sprintf("SELECT * FROM courses WHERE courses.term LIKE '%v'", term)
-	rows, err := db.Query(query)
-	defer db.Close()
-	defer rows.Close()
-	if err != nil {
-		return nil, err
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	courses := make([]Course, 0)
-	for rows.Next() {
-		newCourse := Course{}
-		err = rows.Scan(
-			&newCourse.ID,
-			&newCourse.Term,
-			&newCourse.CourseNumber,
-			&newCourse.Professor,
-			&newCourse.Time,
-			&newCourse.Link,
-			&newCourse.User)
+	for _, term := range terms {
+		var result map[string]interface{}
+		err := client.NewRef("courses").Child(term).Get(context.Background(), &result)
 		if err != nil {
 			return nil, err
 		}
 
-		courses = append(courses, newCourse)
+		for _, obj := range result {
+			m := obj.(map[string]interface{})
+			newCourse := Course{
+				CourseNumber: fmt.Sprint(m["course_number"]),
+				Link:         fmt.Sprint(m["link"]),
+				Professor:    fmt.Sprint(m["professor"]),
+				Term:         fmt.Sprint(m["term"]),
+				Time:         fmt.Sprint(m["time"]),
+				User:         fmt.Sprint(m["user"]),
+			}
+
+			results = append(results, newCourse)
+		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return courses, nil
+	return results, nil
 }
 
+// REPLACE
 func deleteCourse(idToDelete int) (int64, error) {
-	db, err := sql.Open("sqlite3", dbString)
-	if err != nil {
-		defer db.Close()
-		return 0, err
-	}
-
-	stmt, err := db.Prepare("DELETE FROM courses WHERE id = ?")
-	if err != nil {
-		defer stmt.Close()
-		return 0, err
-	}
-
-	defer db.Close()
-	defer stmt.Close()
-
-	res, err := stmt.Exec(idToDelete)
-	if err != nil {
-		return 0, err
-	}
-
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-
-	fmt.Printf("Deleted id=%v", idToDelete)
-	return affected, nil
+	return 0, nil
 }
 
-// Ensure that the netID doesn't already exist
-func addLogin(username string, password string) error {
-	db, err := sql.Open("sqlite3", dbString)
-	if err != nil {
-		defer db.Close()
-		return err
-	}
+func dbHasUsername(username string) (bool, error) {
+	var result string
+	err := client.NewRef("logins").Child(username).Get(context.Background(), &result)
 
-	query := fmt.Sprintf("SELECT * FROM logins WHERE logins.username LIKE '%v'", username)
-	rows, err := db.Query(query)
-	defer db.Close()
-	defer rows.Close()
+	return result != "", err
+}
 
-	if rows.Next() {
-		return errors.New("Username already registered")
-	}
+func setLogin(username string, password string) error {
+	err := client.NewRef("logins").
+		Child(username).
+		Set(context.Background(), password)
 
-	stmt, err := db.Prepare("INSERT INTO logins (id, username, password) VALUES (?, ?, ?)")
-	defer db.Close()
-	if err != nil {
-		defer stmt.Close()
-		return err
-	}
-
-	_, err = stmt.Exec(
-		nil,
-		username,
-		password,
-	)
-	if err != nil {
-		defer stmt.Close()
-		return err
-	}
-
-	defer stmt.Close()
-	return nil
+	return err
 }
 
 func getPassword(username string) (string, error) {
-	db, err := sql.Open("sqlite3", dbString)
+	var result string
+	err := client.NewRef("logins").Child(username).Get(context.Background(), &result)
+
 	if err != nil {
-		defer db.Close()
 		return "", err
 	}
-
-	rows, err := db.Query(fmt.Sprintf("SELECT password FROM logins WHERE logins.username='%v'", username))
-	if err != nil {
-		defer db.Close()
-		return "", err
-	}
-	defer db.Close()
-
-	var password string
-	if rows.Next() {
-		err = rows.Scan(&password)
-	}
-	defer rows.Close()
-
-	return password, nil
+	return result, nil
 }

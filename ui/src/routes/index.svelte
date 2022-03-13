@@ -1,56 +1,23 @@
 <script lang="ts">
-	// import css files
 	import '../../static/main.css';
 	import 'gridjs/dist/theme/mermaid.css';
 
-	import { onMount } from 'svelte';
-	import { writable } from 'svelte/store';
-
-	// import npm components
 	import { BaseComponent, h, html, PluginPosition } from 'gridjs';
-	import Grid from 'gridjs-svelte';
-	import Modal, { bind } from 'svelte-simple-modal';
+	import { getCurrentSemester, isUserLoggedIn, logout, serverURL } from '$lib/utils';
+	import { onMount } from 'svelte';
 
-	// import svelte components
-	import LoginModal from '../components/LoginModal.svelte';
+	import FooterBar from '../components/FooterBar.svelte';
+	import Grid from 'gridjs-svelte';
 	import TitleBar from '../components/TitleBar.svelte';
 
-	let serverURL = 'http://localhost:3000';
-	let loggedIn = false;
-	let netID = 'jmg136';
-	let data = [];
-	let showAllSemesters = false;
-	let currentSemester = '';
 	let grid: any;
-
 	const columns = ['Term', 'Course Number', 'Professor', 'Time', 'Link'];
+	let data = [];
 
-	const getCookie = (name: string) => {
-		const value = `; ${document.cookie}`;
-		const parts = value.split(`; ${name}=`);
-		return parts.length === 2 ? parts.pop().split(';').shift() : '';
-	};
-
-	const deleteCookie = (name: string) => {
-		document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
-	};
-
-	const getCurrentSemester = () => {
-		const d = new Date();
-		const month = d.getMonth();
-		const year = d.getFullYear();
-
-		let term: string;
-		if (month <= 4) {
-			term = 'Sp';
-		} else if (month <= 7) {
-			term = 'Su';
-		} else {
-			term = 'Fa';
-		}
-
-		currentSemester = term.concat(`${year % 1000}`);
-	};
+	let loggedIn: boolean = true;
+	let username: string;
+	let showAllSemesters = false;
+	let currentSemester: string;
 
 	// Turns fetched data into valid format for datatable
 	const formatData = (data: any[]) => {
@@ -73,7 +40,7 @@
 			url += `?term=${currentSemester}`;
 		}
 
-		const response = await fetch(url, {
+		const res = await fetch(url, {
 			method: 'GET',
 			credentials: 'include',
 			headers: {
@@ -81,11 +48,8 @@
 			}
 		});
 
-		if (response.ok) {
-			console.log('returning fetched and formatted data');
-			data = formatData(await response.json());
-			console.log(data);
-
+		if (res.ok) {
+			data = formatData(await res.json());
 			grid.updateConfig({ data: data }).forceRender();
 		} else {
 			console.error('Failed to fetch data');
@@ -93,30 +57,14 @@
 		}
 	};
 
-	const handleLogin = (netID) => {
-		loggedIn = true;
-		netID = netID;
-
-		getData();
-	};
-
-	const logout = () => {
-		fetch(`${serverURL}/logout`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			credentials: 'include',
-			body: JSON.stringify(getCookie('session_token'))
-		}).then((res) => {
-			if (res.ok) {
-				loggedIn = false;
-				netID = '';
-
-				deleteCookie('session_token');
-				deleteCookie('net_id');
-			} else {
-				console.error('Error: logout failed');
-			}
-		});
+	const handleLogout = async () => {
+		if (logout()) {
+			loggedIn = false;
+			username = '';
+			window.location.assign('/login');
+		} else {
+			console.error('Failed to logout');
+		}
 	};
 
 	const handleShowAllSemesters = () => {
@@ -125,33 +73,32 @@
 	};
 
 	onMount(async () => {
-		// loggedIn = getCookie('session_token') != '';
+		[loggedIn, username] = isUserLoggedIn();
+
 		if (loggedIn) {
+			currentSemester = getCurrentSemester();
 			getData();
+		} else {
+			window.location.replace('/login');
 		}
-		getCurrentSemester();
 	});
-
-	const loginModal = writable(null);
-	// @ts-ignore: Doesn't support type checking
-	const showLoginModal = () => loginModal.set(bind(LoginModal, { serverURL: serverURL }, {onClose: () => console.log('closing')}));
-
-	const registerModal = writable(null);
-	// @ts-ignore: Doesn't support type checking
-	const showRegisterModal = () => registerModal.set(bind(LoginModal));
-
-	const addCourseModal = writable(null);
-	// @ts-ignore: Doesn't support type checking
-	const showAddCourseModal = () => addCourseModal.set(bind(LoginModal));
 
 	class ButtonRowPlugin extends BaseComponent {
 		render() {
 			return h('div', { class: 'material-icons-row' }, [
-				h('span', { class: 'material-icons', onclick: showAddCourseModal }, 'add'),
-				h('span', { class: 'material-icons', onclick: null }, 'delete'),
 				h(
 					'span',
-					{ class: 'material-icons', onclick: handleShowAllSemesters },
+					{
+						class: 'material-icons',
+						title: 'Add a course',
+						onclick: () => window.location.replace('/add-course')
+					},
+					'add'
+				),
+				h('span', { class: 'material-icons', title: 'Delete a course' }, 'delete'),
+				h(
+					'span',
+					{ class: 'material-icons', title: 'Show all semesters', onclick: handleShowAllSemesters },
 					`${showAllSemesters ? 'visibility' : 'visibility_off'}`
 				)
 			]);
@@ -159,21 +106,8 @@
 	}
 </script>
 
-<svelte:head>
-	<title>GroupDuke</title>
-</svelte:head>
-<div>
-	<Modal show={$loginModal} />
-	<Modal show={$registerModal} />
-	<Modal show={$addCourseModal} />
-
-	<TitleBar
-		{loggedIn}
-		{netID}
-		on:register={showRegisterModal}
-		on:login={showLoginModal}
-		on:logout={logout}
-	/>
+<main>
+	<TitleBar {loggedIn} {username} on:logout={handleLogout} />
 
 	<div class="content">
 		{#if loggedIn}
@@ -194,13 +128,15 @@
 					}
 				]}
 			/>
-		{:else}
-			<p>Please login to view</p>
 		{/if}
 	</div>
-</div>
+
+	<FooterBar />
+</main>
 
 <style>
+	/* @import "https://cdn.jsdelivr.net/npm/gridjs/dist/theme/mermaid.min.css"; */
+
 	.content {
 		align-content: center;
 		text-align: center;

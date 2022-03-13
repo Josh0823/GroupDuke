@@ -1,0 +1,17 @@
+# Database files
+*.sqlite
+*.rdb
+
+# Environment variables
+*.env
+secrets
+
+# IDE Files
+*.vscode
+
+# Mac files
+**/.DS_Store
+
+# UI Generated Files
+**/node_modules
+**/.svelte-kit
